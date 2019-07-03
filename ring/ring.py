@@ -1,5 +1,10 @@
+use_mpi=True
+
 import sys
 import arbor
+
+if use_mpi:
+    import mpi4py.MPI as MPI
 
 class ring_recipe (arbor.recipe):
 
@@ -44,24 +49,29 @@ class ring_recipe (arbor.recipe):
             return [arbor.event_generator(arbor.cell_member(0,0), 0.1, sched)]
         return []
 
+context = arbor.context(threads=1, gpu_id=None)
+if use_mpi:
+    context = arbor.context(threads=1, gpu_id=None, mpi=MPI.COMM_WORLD)
 
-context = arbor.context(threads=4, gpu_id=None)
-print(context)
+is_root = context.rank==0
+
+if is_root: print(context)
 
 meters = arbor.meter_manager()
 meters.start(context)
 
 recipe = ring_recipe(100)
-print(f'{recipe}')
+if is_root: print(f'{recipe}')
+
 meters.checkpoint('recipe-create', context)
 
 decomp = arbor.partition_load_balance(recipe, context)
-print(f'{decomp}')
+if is_root: print(f'{decomp}')
 
 meters.checkpoint('load-balance', context)
 
 sim = arbor.simulation(recipe, decomp, context)
-print(f'{sim}')
+if is_root: print(f'{sim}')
 
 meters.checkpoint('simulation-init', context)
 
@@ -71,7 +81,9 @@ sim.run(100)
 
 meters.checkpoint('simulation-run', context)
 
-print(f'{arbor.meter_report(meters, context)}')
+report = arbor.meter_report(meters, context)
+if is_root: print(f'{report}')
 
-for s in recorder.spikes:
-    print(s)
+if is_root:
+    for s in recorder.spikes:
+        print(s)
