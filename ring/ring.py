@@ -60,7 +60,7 @@ if is_root: print(context)
 meters = arbor.meter_manager()
 meters.start(context)
 
-recipe = ring_recipe(100)
+recipe = ring_recipe(10)
 if is_root: print(f'{recipe}')
 
 meters.checkpoint('recipe-create', context)
@@ -85,5 +85,6 @@ report = arbor.meter_report(meters, context)
 if is_root: print(f'{report}')
 
 if is_root:
+    print('{:>5s}{:>10s}'.format('gid', 'time(ms)'))
     for s in recorder.spikes:
-        print(s)
+        print('{:5d}{:10.3f}'.format(s.source.gid, s.time))
