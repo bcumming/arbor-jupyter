@@ -1,10 +1,6 @@
 import sys
 import arbor
 
-use_mpi=arbor.config()['mpi']
-
-if use_mpi: import mpi4py.MPI as MPI
-
 class ring_recipe (arbor.recipe):
 
     def __init__(self, n=4):
@@ -48,42 +44,36 @@ class ring_recipe (arbor.recipe):
             return [arbor.event_generator(arbor.cell_member(0,0), 0.1, sched)]
         return []
 
-nthreads=12
+nthreads=1
 context = arbor.context(threads=nthreads, gpu_id=None)
-if use_mpi:
-    context = arbor.context(threads=nthreads, gpu_id=None, mpi=MPI.COMM_WORLD)
-
-is_root = context.rank==0
-
-if is_root: print(context)
 
 meters = arbor.meter_manager()
 meters.start(context)
-recipe = ring_recipe(100)
-if is_root: print(recipe)
 
-meters.checkpoint('recipe-create', context)
+# Create a recipe
+recipe = ring_recipe(1000)
+meters.checkpoint('recipe-create', context)     # checkpoint
 
+# Perform decomposition
 decomp = arbor.partition_load_balance(recipe, context)
-if is_root: print(decomp)
+meters.checkpoint('load-balance', context)      # checkpoint
 
-meters.checkpoint('load-balance', context)
-
+# Create the simulation
 sim = arbor.simulation(recipe, decomp, context)
-if is_root: print(sim)
-
-meters.checkpoint('simulation-init', context)
-
+# Attach a spike recorder
 recorder = arbor.attach_spike_recorder(sim)
+meters.checkpoint('simulation-init', context)   # checkpoint
 
-sim.run(100)
+# Run the simulation for 100ms
+sim.run(10)
+meters.checkpoint('simulation-run', context)    # checkpoint
 
-meters.checkpoint('simulation-run', context)
+# Print the spikes
+print('{:>5s}{:>10s}'.format('gid', 'time(ms)'))
+for s in recorder.spikes:
+    print('{:5d}{:10.3f}'.format(s.source.gid, s.time))
 
+# Print a performance report
 report = arbor.meter_report(meters, context)
-if is_root: print(report)
+print(report)
 
-if is_root:
-    print('{:>5s}{:>10s}'.format('gid', 'time(ms)'))
-    for s in recorder.spikes:
-        print('{:5d}{:10.3f}'.format(s.source.gid, s.time))
